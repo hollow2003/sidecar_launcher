@@ -39,6 +39,8 @@ void handle_request(int client_socket) {
             struct json_object *ntp_address;
             struct json_object *redis_address;
             struct json_object *redis_port;
+            struct json_object *target_redis_address;
+            struct json_object *target_redis_port;
             parsed_json = json_tokener_parse(json_body);
             if (parsed_json == NULL) {
                 fprintf(stderr, "Failed to parse JSON\n");
@@ -58,8 +60,10 @@ void handle_request(int client_socket) {
             json_object_object_get_ex(parsed_json, "ntp_address", &ntp_address);
             json_object_object_get_ex(parsed_json, "redis_address", &redis_address);
             json_object_object_get_ex(parsed_json, "redis_port", &redis_port);
+            json_object_object_get_ex(parsed_json, "target_redis_address", &target_redis_address);
+            json_object_object_get_ex(parsed_json, "target_redis_port", &target_redis_port);
             if (service_config == NULL || control_port == NULL || ntp_address == NULL ||
-                redis_address == NULL || redis_port == NULL) {
+                redis_address == NULL || redis_port == NULL || target_redis_address == NULL || target_redis_port == NULL) {
                 fprintf(stderr, "Missing required fields\n");
                 const char *http_response = "HTTP/1.1 400 Bad Request\r\n"
                                             "Content-Type: text/plain\r\n"
@@ -77,10 +81,12 @@ void handle_request(int client_socket) {
             const char *ntp_address_str = json_object_get_string(ntp_address);
             const char *redis_address_str = json_object_get_string(redis_address);
             int redis_port_int = json_object_get_int(redis_port);
+            const char *target_redis_address_str = json_object_get_string(target_redis_address);
+            int target_redis_port_int = json_object_get_int(target_redis_port);
             char command[BUFFER_SIZE];
             
-            snprintf(command, sizeof(command), "sudo bash /home/hpr/consul/sidecar_launcher/startup_sidecar.sh \"%s\" %d \"%s\" \"%s\" %d", 
-                     service_config_str, control_port_int, ntp_address_str, redis_address_str, redis_port_int);
+            snprintf(command, sizeof(command), "sudo bash /home/hpr/consul/sidecar_launcher/startup_sidecar.sh \"%s\" %d \"%s\" \"%s\" %d \"%s\" %d", 
+                     service_config_str, control_port_int, ntp_address_str, redis_address_str, redis_port_int, target_redis_address_str, target_redis_port_int);
 
             // Change directory to where the program is located
             if (chdir("/home/hpr/consul/sidecar") != 0) {
