@@ -1,0 +1,2 @@
+curl -X POST http://localhost:18081/startup_sidecar      -H "Content-Type: application/json"      -d '{"service_config": "/home/hpr/consul/services/robot.json", "control_port": 8080, "ntp_address": "127.0.0.1:1234", "redis_address": "127.0.0.1", "redis_port": 6379}'
+
