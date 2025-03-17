@@ -109,11 +109,16 @@ void handle_request(int client_socket) {
             json_object_put(parsed_json);
 
             // Respond with a success message
-            const char *http_response = "HTTP/1.1 200 OK\r\n"
-                                        "Content-Type: text/plain\r\n"
-                                        "Connection: close\r\n"
-                                        "\r\n"
-                                        "Command executed successfully\n";
+            const char *response_body = "Command executed successfully\n";
+            char http_response[256];
+            snprintf(http_response, sizeof(http_response),
+                     "HTTP/1.1 200 OK\r\n"
+                     "Content-Type: text/plain\r\n"
+                     "Content-Length: %zu\r\n"
+                     "Connection: close\r\n"
+                     "\r\n"
+                     "%s",
+                     strlen(response_body), response_body);
             send(client_socket, http_response, strlen(http_response), 0);
             close(client_socket);
         }
