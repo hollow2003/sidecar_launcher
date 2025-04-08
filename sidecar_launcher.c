@@ -10,20 +10,55 @@
 #define PORT 18081
 #define BUFFER_SIZE 1024
 
+// 读取完整的HTTP请求
+int recv_full_request(int client_socket, char *buffer, size_t buffer_size) {
+    int total_received = 0;
+    int bytes_received;
+
+    while (total_received < buffer_size - 1) {
+        bytes_received = recv(client_socket, buffer + total_received, buffer_size - total_received - 1, 0);
+        if (bytes_received <= 0) {
+            if (bytes_received < 0) perror("recv");
+            break;
+        }
+        total_received += bytes_received;
+        buffer[total_received] = '\0';
+
+        // 检查是否接收到完整的请求（找到\r\n\r\n）
+        if (strstr(buffer, "\r\n\r\n") != NULL) {
+            // 继续接收直到Content-Length指定的数据量（如果有）
+            char *content_length_str = strstr(buffer, "Content-Length:");
+            if (content_length_str) {
+                int content_length = 0;
+                sscanf(content_length_str, "Content-Length: %d", &content_length);
+                char *body_start = strstr(buffer, "\r\n\r\n") + 4;
+                int header_length = body_start - buffer;
+                int expected_total = header_length + content_length;
+                while (total_received < expected_total && total_received < buffer_size - 1) {
+                    bytes_received = recv(client_socket, buffer + total_received, buffer_size - total_received - 1, 0);
+                    if (bytes_received <= 0) {
+                        if (bytes_received < 0) perror("recv");
+                        break;
+                    }
+                    total_received += bytes_received;
+                    buffer[total_received] = '\0';
+                }
+            }
+            break;
+        }
+    }
+    return total_received;
+}
+
 void handle_request(int client_socket) {
     char buffer[BUFFER_SIZE];
-    int bytes_received = recv(client_socket, buffer, sizeof(buffer) - 1, 0);
-    if (bytes_received < 0) {
-        perror("recv");
+    int bytes_received = recv_full_request(client_socket, buffer, sizeof(buffer));
+    if (bytes_received <= 0) {
         close(client_socket);
         return;
     }
-
-    // Null-terminate the received data
     buffer[bytes_received] = '\0';
-
-    // Print the received request (for debugging)
-    printf("Received request:\n%s\n", buffer);
+    printf("Received request:\n%s\n", buffer);  // 打印完整请求
 
     // Check if the request is a POST to /startup_sidecar
     if (strstr(buffer, "POST /startup_sidecar") != NULL) {
@@ -31,6 +66,7 @@ void handle_request(int client_socket) {
         char *json_body = strstr(buffer, "\r\n\r\n");
         if (json_body != NULL) {
             json_body += 4; // Move past the headers
+            printf("JSON body to parse:\n'%s'\n", json_body);
 
             // Parse the JSON body
             struct json_object *parsed_json;
@@ -85,7 +121,7 @@ void handle_request(int client_socket) {
             int target_redis_port_int = json_object_get_int(target_redis_port);
             char command[BUFFER_SIZE];
             
-            snprintf(command, sizeof(command), "sudo bash /home/hpr/consul/sidecar_launcher/startup_sidecar.sh \"%s\" %d \"%s\" \"%s\" %d \"%s\" %d", 
+            snprintf(command, sizeof(command), "sudo bash /home/hpr/sidecar_launcher/startup_sidecar.sh \"%s\" %d \"%s\" \"%s\" %d \"%s\" %d", 
                      service_config_str, control_port_int, ntp_address_str, redis_address_str, redis_port_int, target_redis_address_str, target_redis_port_int);
 
             // Change directory to where the program is located
